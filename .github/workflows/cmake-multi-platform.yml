@@ -13,16 +13,47 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 使用你提供的指定版本标签直接下载 xmrig-deps
+      # 自动检索并下载预编译的二进制依赖库（包含 .lib 和 .h 库文件）
       - name: Download and Extract xmrig-deps
         shell: pwsh
         run: |
-          Invoke-WebRequest -Uri "https://github.com/xmrig/xmrig-deps/archive/refs/tags/v25.06.16.zip" -OutFile "xmrig-deps.zip"
-          Expand-Archive -Path "xmrig-deps.zip" -DestinationPath "deps_extracted"
-          
-          # 动态匹配并获取解压目录下的 msvc2022\x64 路径
-          $depsPath = (Get-ChildItem -Path "deps_extracted" -Filter "x64" -Recurse -Directory | Where-Object { $_.Parent.Name -eq "msvc2022" }).FullName
-          Write-Host "Target deps path: $depsPath"
+          $apiUrl = "https://api.github.com/repos/xmrig/xmrig-deps/releases"
+          $response = Invoke-RestMethod -Uri $apiUrl
+          $downloadUrl = $null
+
+          foreach ($release in $response) {
+              $asset = $release.assets | Where-Object { $_.name -like "*win64-msvc2022.zip" -or $_.name -like "*win64*.zip" } | Select-Object -First 1
+              if ($asset) {
+                  $downloadUrl = $asset.browser_download_url
+                  Write-Host "Found prebuilt deps asset: $($asset.name)"
+                  break
+              }
+          }
+
+          if (-not $downloadUrl) {
+              $downloadUrl = "https://github.com/xmrig/xmrig-deps/releases/download/v6.2.0/xmrig-deps-6.2.0-win64-msvc2022.zip"
+          }
+
+          Write-Host "Downloading from: $downloadUrl"
+          Invoke-WebRequest -Uri $downloadUrl -OutFile "xmrig-deps.zip"
+          Expand-Archive -Path "xmrig-deps.zip" -DestinationPath "deps_extracted" -Force
+
+          # 自动定位包含 include 和 lib 文件夹的完整依赖目录
+          $depsDir = Get-ChildItem -Path "deps_extracted" -Recurse -Directory | Where-Object { 
+              (Test-Path (Join-Path $_.FullName "include")) -and (Test-Path (Join-Path $_.FullName "lib"))
+          } | Select-Object -First 1
+
+          if (-not $depsDir) {
+              $depsDir = Get-ChildItem -Path "deps_extracted" -Filter "x64" -Recurse -Directory | Select-Object -First 1
+          }
+
+          if (-not $depsDir) {
+              Write-Error "FATAL: Could not locate valid x64 dependencies directory!"
+              exit 1
+          }
+
+          $depsPath = $depsDir.FullName
+          Write-Host "Validated XMRIG_DEPS_PATH: $depsPath"
           "XMRIG_DEPS_PATH=$depsPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Configure and Build
