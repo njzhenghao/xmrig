@@ -13,19 +13,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 动态获取并下载最新版 xmrig-deps，避免硬编码 URL 导致 404
+      # 使用你提供的指定版本标签直接下载 xmrig-deps
       - name: Download and Extract xmrig-deps
         shell: pwsh
         run: |
-          $release = Invoke-RestMethod -Uri "https://api.github.com/repos/xmrig/xmrig-deps/releases/latest"
-          $asset = $release.assets | Where-Object { $_.name -like "*win64-msvc2022.zip" }
-          Write-Host "Downloading $($asset.name)..."
-          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "xmrig-deps.zip"
+          Invoke-WebRequest -Uri "https://github.com/xmrig/xmrig-deps/archive/refs/tags/v25.06.16.zip" -OutFile "xmrig-deps.zip"
           Expand-Archive -Path "xmrig-deps.zip" -DestinationPath "deps_extracted"
           
-          # 自动定位 msvc2022\x64 依赖目录路径
+          # 动态匹配并获取解压目录下的 msvc2022\x64 路径
           $depsPath = (Get-ChildItem -Path "deps_extracted" -Filter "x64" -Recurse -Directory | Where-Object { $_.Parent.Name -eq "msvc2022" }).FullName
-          Write-Host "Found deps path: $depsPath"
+          Write-Host "Target deps path: $depsPath"
           "XMRIG_DEPS_PATH=$depsPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Configure and Build
