@@ -13,28 +13,32 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 直接克隆 xmrig-deps 依赖仓库（包含 msvc2022/x64 预编译静态库）
+      # 激活 MSVC 64位 编译环境
+      - name: Setup MSVC Environment
+        uses: ilammy/msvc-dev-cmd@v1
+
+      # 克隆依赖仓库
       - name: Clone xmrig-deps
         run: git clone --depth 1 https://github.com/xmrig/xmrig-deps.git xmrig-deps
 
+      # 使用 Ninja + MSVC 编译
       - name: Configure and Build
-        shell: pwsh
         run: |
           mkdir build
           cd build
-          cmake .. -G "Visual Studio 17 2022" -A x64 -DXMRIG_DEPS="${{ github.workspace }}/xmrig-deps/msvc2022/x64"
-          cmake --build . --config Release
+          cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Release -DXMRIG_DEPS="${{ github.workspace }}/xmrig-deps/msvc2022/x64"
+          ninja
 
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
         with:
           name: xmrig-windows-x64-0fee
-          path: build/Release/xmrig.exe
+          path: build/xmrig.exe
 
   # ---------------- Ubuntu x64 编译任务 ----------------
   build-ubuntu:
     name: Build Ubuntu x64
-    needs: build-windows   # 依赖约束：仅当 Windows 编译成功后才启动，Win 失败直接终止工作流
+    needs: build-windows   # 依赖约束：Windows 编译成功后才运行，失败则终止
     runs-on: ubuntu-latest
 
     steps:
