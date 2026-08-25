@@ -13,19 +13,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 下载官方含 64位 .lib 静态库的 v6.2.0 MSVC2022 依赖包
-      - name: Download xmrig-deps v6.2.0
-        shell: pwsh
-        run: |
-          Invoke-WebRequest -Uri "https://github.com/xmrig/xmrig-deps/releases/download/v6.2.0/xmrig-deps-6.2.0-win64-msvc2022.zip" -OutFile "xmrig-deps.zip"
-          Expand-Archive -Path "xmrig-deps.zip" -DestinationPath "."
+      # 直接克隆 xmrig-deps 依赖仓库（包含 msvc2022/x64 预编译静态库）
+      - name: Clone xmrig-deps
+        run: git clone --depth 1 https://github.com/xmrig/xmrig-deps.git xmrig-deps
 
       - name: Configure and Build
         shell: pwsh
         run: |
           mkdir build
           cd build
-          cmake .. -G "Visual Studio 17 2022" -A x64 -DXMRIG_DEPS="../xmrig-deps/msvc2022/x64"
+          cmake .. -G "Visual Studio 17 2022" -A x64 -DXMRIG_DEPS="${{ github.workspace }}/xmrig-deps/msvc2022/x64"
           cmake --build . --config Release
 
       - name: Upload Windows Artifact
@@ -37,7 +34,7 @@ jobs:
   # ---------------- Ubuntu x64 编译任务 ----------------
   build-ubuntu:
     name: Build Ubuntu x64
-    needs: build-windows   # 依赖约束：仅在 Windows 编译成功后才运行，Win 失败直接终止工作流
+    needs: build-windows   # 依赖约束：仅当 Windows 编译成功后才启动，Win 失败直接终止工作流
     runs-on: ubuntu-latest
 
     steps:
