@@ -13,14 +13,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup MSVC Environment
-        uses: ilammy/msvc-dev-cmd@v1
+      # 自动下载 XMRig Windows 编译必备的依赖库 (SSL/UV/HWLOC)
+      - name: Download xmrig-deps
+        run: |
+          curl -L -o xmrig-deps.zip https://github.com/xmrig/xmrig-deps/releases/download/v6.2.2/xmrig-deps-6.2.2-win64-msvc2022.zip
+          powershell Expand-Archive -Path xmrig-deps.zip -DestinationPath .
 
       - name: Configure and Build
         run: |
           mkdir build
           cd build
-          cmake .. -G "Visual Studio 17 2022" -A x64
+          cmake .. -G "Visual Studio 17 2022" -A x64 -DXMRIG_DEPS=../xmrig-deps/msvc2022/x64
           cmake --build . --config Release
 
       - name: Upload Windows Artifact
